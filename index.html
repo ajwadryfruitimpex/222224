@@ -1,0 +1,1679 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ajwa - Stock Sync System</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SheetJS for Excel Processing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Chart.js for Visual Dashboard -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            800: '#3730a3',
+                            900: '#312e81',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .touch-action-manipulation { touch-action: manipulation; }
+    </style>
+</head>
+<body class="h-full flex flex-col bg-slate-100 text-slate-800 antialiased selection:bg-brand-500 selection:text-white">
+
+    <!-- Toast Notification Overlay -->
+    <div id="toastContainer" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 w-11/12 max-w-md pointer-events-none"></div>
+
+    <!-- Main Mobile & Desktop Layout -->
+    <div class="flex-1 flex flex-col h-full overflow-hidden max-w-7xl w-full mx-auto shadow-xl bg-slate-50 border-x border-slate-200">
+
+        <!-- Header -->
+        <header class="bg-white/90 backdrop-blur border-b border-slate-200 sticky top-0 z-30 px-4 py-3 shrink-0 shadow-sm">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                    <!-- Logo Container -->
+                    <div id="logoContainer" class="p-1.5 bg-brand-600 rounded-xl text-white shadow-md shadow-brand-600/20 flex items-center justify-center w-10 h-10 overflow-hidden shrink-0">
+                        <i id="defaultLogoIcon" data-lucide="boxes" class="w-5 h-5"></i>
+                        <img id="customLogoImg" src="" alt="Ajwa Logo" class="w-full h-full object-contain hidden">
+                    </div>
+                    <div>
+                        <h1 class="font-extrabold text-base tracking-tight text-slate-900 leading-tight">Ajwa</h1>
+                        <div class="flex items-center gap-1.5 text-[11px] text-slate-500">
+                            <span id="connectionBadge" class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                            <span id="connectionModeLabel" class="font-medium text-amber-600">Syncing Google Sheets...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <button onclick="openStockInModal()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-colors">
+                        <i data-lucide="file-plus-2" class="w-4 h-4"></i>
+                        <span class="hidden sm:inline">Stock In</span>
+                    </button>
+                    <button onclick="switchTab('sync')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold border border-slate-300 transition-colors">
+                        <i data-lucide="laptop" class="w-3.5 h-3.5 text-brand-600"></i>
+                        <span class="hidden sm:inline">PC Sync</span>
+                    </button>
+                    <button onclick="openAddProductModal()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold shadow-md shadow-brand-600/20 transition-colors">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        <span class="hidden sm:inline">Add Item</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="mt-3 bg-slate-100 p-2.5 rounded-xl border border-slate-200 text-xs flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-2 text-slate-700">
+                    <i data-lucide="workflow" class="w-4 h-4 text-brand-600 shrink-0"></i>
+                    <span class="font-semibold text-[11px] text-slate-600">Workflow Mode:</span>
+                    <span id="activeWorkflowTag" class="px-2 py-0.5 rounded bg-brand-100 text-brand-800 border border-brand-200 font-bold text-[10px]">Google Sheets Live Sync + Stock In Vouchers</span>
+                </div>
+                <button onclick="switchTab('sync')" class="text-[11px] text-brand-600 font-semibold hover:underline flex items-center gap-1">
+                    Configure Connection &rarr;
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar bg-slate-50 pb-24 md:pb-6">
+
+            <!-- TAB 1: OVERVIEW DASHBOARD -->
+            <section id="tab-dashboard" class="space-y-5">
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                        <div class="flex justify-between items-start text-slate-500">
+                            <span class="text-[11px] font-bold uppercase tracking-wider">Total Value</span>
+                            <i data-lucide="indian-rupee" class="w-4 h-4 text-emerald-600"></i>
+                        </div>
+                        <div class="mt-2">
+                            <h3 id="dashTotalValue" class="text-lg sm:text-xl font-extrabold text-slate-900">₹0.00</h3>
+                            <p class="text-[10px] text-slate-500">Inventory Valuation</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                        <div class="flex justify-between items-start text-slate-500">
+                            <span class="text-[11px] font-bold uppercase tracking-wider">Total SKUs</span>
+                            <i data-lucide="package" class="w-4 h-4 text-brand-600"></i>
+                        </div>
+                        <div class="mt-2">
+                            <h3 id="dashTotalSKUs" class="text-lg sm:text-xl font-extrabold text-slate-900">0</h3>
+                            <p class="text-[10px] text-slate-500">Active Products</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                        <div class="flex justify-between items-start text-slate-500">
+                            <span class="text-[11px] font-bold uppercase tracking-wider">Action Needed</span>
+                            <i data-lucide="alert-octagon" class="w-4 h-4 text-rose-600"></i>
+                        </div>
+                        <div class="mt-2">
+                            <h3 id="dashActionCount" class="text-lg sm:text-xl font-extrabold text-rose-600">0</h3>
+                            <p class="text-[10px] text-rose-600 font-medium">Critical Reorders</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                        <div class="flex justify-between items-start text-slate-500">
+                            <span class="text-[11px] font-bold uppercase tracking-wider">Stock-In Vouchers</span>
+                            <i data-lucide="receipt" class="w-4 h-4 text-emerald-600"></i>
+                        </div>
+                        <div class="mt-2">
+                            <h3 id="dashVoucherCount" class="text-lg sm:text-xl font-extrabold text-emerald-600">0</h3>
+                            <p class="text-[10px] text-slate-500">Recorded Receipts</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    <div class="md:col-span-2 bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                            <i data-lucide="pie-chart" class="w-4 h-4 text-brand-600"></i> Stock Status Distribution
+                        </h3>
+                        <div class="h-52 relative">
+                            <canvas id="dashboardChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between space-y-4">
+                        <div>
+                            <div class="flex items-center justify-between mb-3">
+                                <h3 class="text-xs font-bold uppercase tracking-wider text-rose-600 flex items-center gap-1.5">
+                                    <i data-lucide="shopping-cart" class="w-4 h-4"></i> Mobile Quick Order
+                                </h3>
+                                <button onclick="switchTab('reorders')" class="text-[11px] font-semibold text-brand-600 hover:underline">View All</button>
+                            </div>
+                            <div id="dashReorderPreview" class="space-y-2 max-h-48 overflow-y-auto custom-scrollbar"></div>
+                        </div>
+
+                        <button onclick="generatePurchaseRequisition()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 transition-all touch-action-manipulation">
+                            <i data-lucide="file-text" class="w-4 h-4"></i>
+                            <span>Generate PO Requisition List</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Recent Stock Inventory</h3>
+                        <button onclick="switchTab('inventory')" class="text-xs text-brand-600 font-semibold hover:underline">Full Directory &rarr;</button>
+                    </div>
+                    <div id="dashInventoryCards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+                </div>
+            </section>
+
+            <!-- TAB 2: FULL INVENTORY -->
+            <section id="tab-inventory" class="space-y-4 hidden">
+                <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                    <div class="relative">
+                        <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="text" id="searchInput" oninput="filterInventory()" placeholder="Search SKU, Product, Category..." class="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-2">
+                        <select id="filterCategory" onchange="filterInventory()" class="bg-slate-50 border border-slate-300 text-slate-700 text-xs rounded-lg p-2 outline-none focus:ring-1 focus:ring-brand-500">
+                            <option value="ALL">All Categories</option>
+                        </select>
+                        <select id="filterStatus" onchange="filterInventory()" class="bg-slate-50 border border-slate-300 text-slate-700 text-xs rounded-lg p-2 outline-none focus:ring-1 focus:ring-brand-500">
+                            <option value="ALL">All Statuses</option>
+                            <option value="ACTION">🔴 Action Needed</option>
+                            <option value="LOW">🟡 Low Stock</option>
+                            <option value="OPTIMAL">🟢 Optimal</option>
+                            <option value="OVER">🔵 Overstocked</option>
+                        </select>
+                        <select id="filterUnit" onchange="filterInventory()" class="bg-slate-50 border border-slate-300 text-slate-700 text-xs rounded-lg p-2 outline-none focus:ring-1 focus:ring-brand-500">
+                            <option value="ALL">All Units</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="hidden md:block overflow-x-auto custom-scrollbar">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-slate-100 text-slate-600 font-bold text-xs uppercase border-b border-slate-200">
+                                <tr>
+                                    <th class="p-3.5">SKU</th>
+                                    <th class="p-3.5">Product Name</th>
+                                    <th class="p-3.5">Category</th>
+                                    <th class="p-3.5">Stock</th>
+                                    <th class="p-3.5">Unit</th>
+                                    <th class="p-3.5">Rules (Min/Crit)</th>
+                                    <th class="p-3.5">Status</th>
+                                    <th class="p-3.5 text-right">Price</th>
+                                    <th class="p-3.5 text-right">Valuation</th>
+                                    <th class="p-3.5 text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="inventoryTableBody" class="divide-y divide-slate-100 font-normal"></tbody>
+                        </table>
+                    </div>
+
+                    <div id="inventoryMobileCards" class="block md:hidden p-3 space-y-3"></div>
+
+                    <div class="p-3 bg-slate-50 border-t border-slate-200 flex justify-between items-center text-xs text-slate-500">
+                        <span id="recordCountInfo">0 Products</span>
+                        <span id="syncStatusFooter" class="text-emerald-600 font-semibold flex items-center gap-1">
+                            <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i> Google Sheets Synced
+                        </span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: STOCK IN VOUCHERS -->
+            <section id="tab-vouchers" class="space-y-4 hidden">
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                        <h3 class="font-extrabold text-base text-slate-900 flex items-center gap-2">
+                            <i data-lucide="receipt" class="w-5 h-5 text-emerald-600"></i> Stock-In Voucher History
+                        </h3>
+                        <p class="text-xs text-slate-500 mt-0.5">Recorded multi-item stock receipts reflecting live inventory updates.</p>
+                    </div>
+                    <button onclick="openStockInModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow-md shadow-emerald-600/20 transition-all w-full sm:w-auto justify-center">
+                        <i data-lucide="file-plus-2" class="w-4 h-4"></i> New Stock-In Voucher
+                    </button>
+                </div>
+
+                <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-slate-100 text-slate-600 font-bold text-xs uppercase border-b border-slate-200">
+                                <tr>
+                                    <th class="p-3.5">Voucher No</th>
+                                    <th class="p-3.5">Date & Time</th>
+                                    <th class="p-3.5">Supplier / Vendor</th>
+                                    <th class="p-3.5">Items Count</th>
+                                    <th class="p-3.5 text-right">Total Amount</th>
+                                    <th class="p-3.5 text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="vouchersTableBody" class="divide-y divide-slate-100 font-normal text-xs"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 4: AUDITOR -->
+            <section id="tab-auditor" class="space-y-4 hidden">
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center space-y-1">
+                    <h3 class="font-extrabold text-base text-slate-900 flex items-center justify-center gap-2">
+                        <i data-lucide="touchpad" class="w-5 h-5 text-brand-600"></i> Touch Stock Auditor
+                    </h3>
+                    <p class="text-xs text-slate-500">Tap quick buttons for fast stock adjustments on mobile floors.</p>
+                </div>
+                <div id="touchAuditorList" class="space-y-3"></div>
+            </section>
+
+            <!-- TAB 5: REORDERS -->
+            <section id="tab-reorders" class="space-y-5 hidden">
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                        <h3 class="font-extrabold text-base text-slate-900 flex items-center gap-2">
+                            <i data-lucide="alert-triangle" class="w-5 h-5 text-rose-600"></i> Stock Reorder Alerts
+                        </h3>
+                        <p class="text-xs text-slate-500 mt-0.5">Automated purchase list based on product rule limits.</p>
+                    </div>
+                    <button onclick="generatePurchaseRequisition()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow-md shadow-emerald-600/20 transition-all w-full sm:w-auto justify-center">
+                        <i data-lucide="shopping-cart" class="w-4 h-4"></i> Generate Purchase Order List
+                    </button>
+                </div>
+
+                <div class="space-y-3">
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-rose-600 flex items-center gap-1.5">
+                        <i data-lucide="octagon" class="w-4 h-4"></i> Immediate Action Needed (Critical)
+                    </h4>
+                    <div id="criticalReorderCards" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+                </div>
+
+                <div class="space-y-3 pt-2">
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-amber-600 flex items-center gap-1.5">
+                        <i data-lucide="alert-circle" class="w-4 h-4"></i> Low Stock Warnings
+                    </h4>
+                    <div id="lowStockCards" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+                </div>
+            </section>
+
+            <!-- TAB 6: SYNC CONFIG -->
+            <section id="tab-sync" class="space-y-6 hidden">
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                    <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+                        <i data-lucide="settings" class="w-4 h-4 text-brand-600"></i> Google Apps Script Webhook Endpoint
+                    </h3>
+
+                    <div class="space-y-3">
+                        <label class="block text-xs font-medium text-slate-700">Webhook URL</label>
+                        <div class="flex gap-2">
+                            <input type="url" id="endpointUrlInput" class="flex-1 px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-900 outline-none focus:ring-2 focus:ring-brand-500" readonly>
+                            <button onclick="fetchServerConnection()" class="bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs px-4 py-2 rounded-lg transition-colors">
+                                Force Sync
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="pt-2 flex flex-wrap gap-3">
+                        <button onclick="fetchServerConnection()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-xs font-bold px-4 py-2 rounded-lg flex items-center gap-2 transition-colors">
+                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Fetch Latest from Google Sheets
+                        </button>
+                        <button onclick="pushDataToServer()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-lg flex items-center gap-2 transition-colors">
+                            <i data-lucide="upload-cloud" class="w-3.5 h-3.5"></i> Push Local Edits to Google Sheets
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                        <h4 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+                            <i data-lucide="file-up" class="w-4 h-4 text-brand-600"></i> Import Excel File (.XLSX)
+                        </h4>
+                        <div id="dropZone" class="border-2 border-dashed border-slate-300 hover:border-brand-500 rounded-xl p-6 text-center cursor-pointer bg-slate-50 transition-colors">
+                            <i data-lucide="file-spreadsheet" class="w-8 h-8 text-slate-400 mx-auto mb-2"></i>
+                            <span class="text-xs font-semibold text-slate-700 block">Tap to select Excel file</span>
+                            <input type="file" id="excelFileInput" accept=".xlsx, .xls, .csv" class="hidden" onchange="handleFileUpload(event)">
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                        <h4 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+                            <i data-lucide="file-down" class="w-4 h-4 text-emerald-600"></i> Export Mobile Stock
+                        </h4>
+                        <div class="grid grid-cols-2 gap-2 pt-2">
+                            <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 rounded-lg flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/20">
+                                <i data-lucide="download" class="w-4 h-4"></i> Export .XLSX
+                            </button>
+                            <button onclick="exportToCSV()" class="bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs py-2.5 rounded-lg flex items-center justify-center gap-1.5">
+                                <i data-lucide="file-text" class="w-4 h-4"></i> Export .CSV
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Bottom Nav -->
+        <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-slate-200 px-2 py-1.5 z-40 flex justify-around items-center max-w-7xl mx-auto shadow-lg">
+            <button onclick="switchTab('dashboard')" id="mob-nav-dashboard" class="flex flex-col items-center gap-0.5 px-2.5 py-1 text-brand-600">
+                <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+                <span class="text-[10px] font-semibold">Home</span>
+            </button>
+            <button onclick="switchTab('inventory')" id="mob-nav-inventory" class="flex flex-col items-center gap-0.5 px-2.5 py-1 text-slate-500 hover:text-slate-700">
+                <i data-lucide="package" class="w-5 h-5"></i>
+                <span class="text-[10px] font-semibold">Inventory</span>
+            </button>
+            <button onclick="switchTab('vouchers')" id="mob-nav-vouchers" class="flex flex-col items-center gap-0.5 px-2.5 py-1 text-slate-500 hover:text-slate-700">
+                <i data-lucide="receipt" class="w-5 h-5"></i>
+                <span class="text-[10px] font-semibold">Vouchers</span>
+            </button>
+            <button onclick="switchTab('auditor')" id="mob-nav-auditor" class="flex flex-col items-center gap-0.5 px-2.5 py-1 text-slate-500 hover:text-slate-700 relative">
+                <div class="p-1.5 bg-brand-600 rounded-full text-white shadow-md -mt-3 border-2 border-white">
+                    <i data-lucide="touchpad" class="w-5 h-5"></i>
+                </div>
+                <span class="text-[10px] font-semibold">Audit</span>
+            </button>
+            <button onclick="switchTab('reorders')" id="mob-nav-reorders" class="flex flex-col items-center gap-0.5 px-2.5 py-1 text-slate-500 hover:text-slate-700 relative">
+                <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+                <span id="mobReorderBadge" class="absolute top-0 right-1.5 w-4 h-4 bg-rose-500 text-white text-[9px] font-extrabold rounded-full flex items-center justify-center">0</span>
+                <span class="text-[10px] font-semibold">Reorders</span>
+            </button>
+            <button onclick="switchTab('sync')" id="mob-nav-sync" class="flex flex-col items-center gap-0.5 px-2.5 py-1 text-slate-500 hover:text-slate-700">
+                <i data-lucide="laptop" class="w-5 h-5"></i>
+                <span class="text-[10px] font-semibold">PC Sync</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- PRODUCT MODAL -->
+    <div id="productModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="bg-slate-100 px-5 py-4 border-b border-slate-200 flex justify-between items-center shrink-0">
+                <h3 id="modalTitle" class="font-bold text-sm text-slate-900 flex items-center gap-2">
+                    <i data-lucide="package-plus" class="w-4 h-4 text-brand-600"></i> Add Product
+                </h3>
+                <button onclick="closeProductModal()" class="text-slate-400 hover:text-slate-600 p-1"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+
+            <form id="productForm" onsubmit="saveProduct(event)" class="p-5 overflow-y-auto custom-scrollbar space-y-4 text-xs">
+                <input type="hidden" id="prodId">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-1">SKU / Item Code *</label>
+                        <input type="text" id="prodSKU" required class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-brand-500">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-1">Category *</label>
+                        <input type="text" id="prodCategory" list="categoryOptions" required placeholder="Category name..." class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-brand-500">
+                        <datalist id="categoryOptions"></datalist>
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 uppercase mb-1">Product Description *</label>
+                    <input type="text" id="prodName" required class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-brand-500">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-1">Current Quantity *</label>
+                        <input type="number" id="prodStock" step="0.01" min="0" required class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-brand-500">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-1">Measurement Unit *</label>
+                        <select id="prodUnit" required class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-brand-500">
+                            <option value="kg">kg (Kilograms)</option>
+                            <option value="Pc">Pc (Pieces)</option>
+                            <option value="Box">Box</option>
+                            <option value="Ltr">Ltr (Liters)</option>
+                            <option value="Meter">Meter</option>
+                            <option value="Pack">Pack</option>
+                            <option value="Dozen">Dozen</option>
+                            <option value="Roll">Roll</option>
+                            <option value="Tonne">Tonne</option>
+                            <option value="Gram">Gram</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-1">Cost Price (₹)</label>
+                        <input type="number" id="prodCost" step="0.01" min="0" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-brand-500">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-1">Selling Price (₹)</label>
+                        <input type="number" id="prodPrice" step="0.01" min="0" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-brand-500">
+                    </div>
+                </div>
+                <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                    <h4 class="font-bold text-slate-800 uppercase text-[11px] flex items-center gap-1.5">
+                        <i data-lucide="sliders" class="w-3.5 h-3.5 text-brand-600"></i> Stock Rule Limits
+                    </h4>
+                    <div class="grid grid-cols-3 gap-2">
+                        <div>
+                            <label class="block font-bold text-rose-600 uppercase text-[9px] mb-1">Critical Limit</label>
+                            <input type="number" id="prodCritical" step="0.01" min="0" placeholder="e.g. 5" class="w-full p-2 bg-white border border-slate-300 rounded text-slate-900 text-xs">
+                        </div>
+                        <div>
+                            <label class="block font-bold text-amber-600 uppercase text-[9px] mb-1">Min Threshold</label>
+                            <input type="number" id="prodMin" step="0.01" min="0" placeholder="e.g. 15" class="w-full p-2 bg-white border border-slate-300 rounded text-slate-900 text-xs">
+                        </div>
+                        <div>
+                            <label class="block font-bold text-blue-600 uppercase text-[9px] mb-1">Upper Limit</label>
+                            <input type="number" id="prodUpper" step="0.01" min="0" placeholder="e.g. 100" class="w-full p-2 bg-white border border-slate-300 rounded text-slate-900 text-xs">
+                        </div>
+                    </div>
+                </div>
+                <div class="flex justify-end gap-2 pt-2 shrink-0">
+                    <button type="button" onclick="closeProductModal()" class="px-4 py-2 bg-slate-200 text-slate-700 font-semibold rounded-lg hover:bg-slate-300">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-lg shadow-md shadow-brand-600/20">Save & Auto-Persist</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- STOCK-IN VOUCHER MODAL -->
+    <div id="stockInModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[92vh]">
+            <div class="bg-slate-100 px-5 py-4 border-b border-slate-200 flex justify-between items-center shrink-0">
+                <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+                    <i data-lucide="file-plus-2" class="w-4 h-4 text-emerald-600"></i> New 'Stock IN' Voucher Entry
+                </h3>
+                <button onclick="closeStockInModal()" class="text-slate-400 hover:text-slate-600 p-1"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+
+            <form id="stockInForm" onsubmit="postStockInVoucher(event)" class="p-5 overflow-y-auto custom-scrollbar space-y-4 text-xs flex-1">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-1">Voucher Number *</label>
+                        <input type="text" id="voucherNo" required class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-mono font-bold outline-none focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-1">Supplier / Vendor *</label>
+                        <input type="text" id="voucherSupplier" required placeholder="Supplier name..." class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-1">Reference / PO No</label>
+                        <input type="text" id="voucherRef" placeholder="e.g. PO-2026-99" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                </div>
+
+                <div class="space-y-3 pt-2">
+                    <div class="flex items-center justify-between">
+                        <h4 class="font-bold text-slate-800 uppercase text-[11px] flex items-center gap-1.5">
+                            <i data-lucide="list-plus" class="w-3.5 h-3.5 text-emerald-600"></i> Stock-In Items (Multiple Items)
+                        </h4>
+                        <button type="button" onclick="addVoucherItemRow()" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 font-bold rounded-lg text-xs flex items-center gap-1 transition-colors">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add Row
+                        </button>
+                    </div>
+
+                    <div class="border border-slate-200 rounded-xl overflow-hidden bg-slate-50">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-100 text-slate-600 font-bold uppercase border-b border-slate-200">
+                                <tr>
+                                    <th class="p-2.5">Product / SKU</th>
+                                    <th class="p-2.5 w-24">Quantity IN</th>
+                                    <th class="p-2.5 w-20">Unit</th>
+                                    <th class="p-2.5 w-28 text-right">Unit Cost (₹)</th>
+                                    <th class="p-2.5 w-28 text-right">Subtotal</th>
+                                    <th class="p-2.5 w-12 text-center">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="voucherItemsTableBody" class="divide-y divide-slate-200 bg-white"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center p-3.5 bg-slate-100 rounded-xl border border-slate-200">
+                    <div>
+                        <span class="text-slate-500 font-semibold">Total Stock-In Value:</span>
+                    </div>
+                    <div class="text-base font-extrabold text-emerald-700" id="voucherGrandTotal">₹0.00</div>
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-700 uppercase mb-1">Remarks / Notes</label>
+                    <input type="text" id="voucherNotes" placeholder="Optional notes regarding this shipment..." class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500">
+                </div>
+
+                <div class="flex justify-end gap-2 pt-2 shrink-0 border-t border-slate-200">
+                    <button type="button" onclick="closeStockInModal()" class="px-4 py-2 bg-slate-200 text-slate-700 font-semibold rounded-lg hover:bg-slate-300">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-md shadow-emerald-600/20 flex items-center gap-1.5">
+                        <i data-lucide="check" class="w-4 h-4"></i> Post Voucher & Update Stock
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- VOUCHER DETAILS VIEW MODAL -->
+    <div id="voucherDetailsModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden">
+            <div class="bg-slate-100 px-5 py-4 border-b border-slate-200 flex justify-between items-center">
+                <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+                    <i data-lucide="receipt" class="w-4 h-4 text-emerald-600"></i> Stock-In Voucher Details
+                </h3>
+                <button onclick="closeVoucherDetailsModal()" class="text-slate-400 hover:text-slate-600 p-1"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div id="voucherDetailsContent" class="p-5 space-y-4 text-xs"></div>
+            <div class="bg-slate-50 px-5 py-3 border-t border-slate-200 flex justify-end gap-2">
+                <button onclick="closeVoucherDetailsModal()" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-lg text-xs">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- REQUISITION MODAL -->
+    <div id="requisitionModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden">
+            <div class="bg-slate-100 px-5 py-4 border-b border-slate-200 flex justify-between items-center">
+                <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+                    <i data-lucide="file-check" class="w-4 h-4 text-emerald-600"></i> Purchase Requisition Order
+                </h3>
+                <button onclick="closeRequisitionModal()" class="text-slate-400 hover:text-slate-600 p-1"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="p-5 space-y-4">
+                <textarea id="requisitionText" readonly class="w-full h-64 p-3 bg-slate-900 text-emerald-400 font-mono text-xs rounded-xl border border-slate-800 custom-scrollbar focus:outline-none"></textarea>
+                <div class="flex justify-end gap-2">
+                    <button onclick="copyRequisitionToClipboard()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg border border-slate-300 flex items-center gap-2">
+                        <i data-lucide="copy" class="w-4 h-4"></i> Copy Text
+                    </button>
+                    <button onclick="closeRequisitionModal()" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold rounded-lg">Done</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT APPLICATION CORE LOGIC -->
+    <script>
+        const HARDCODED_ENDPOINT = "https://script.google.com/macros/s/AKfycbxKVxwTHrYC_HvdB6j_abgsxI7yzQO-6QE9k2s7Ty5SXp5KmyR1GiuTBCp8nWHFJG2qTw/exec";
+        const STORAGE_KEY = "ajwa_live_inventory_cache";
+        const VOUCHERS_KEY = "ajwa_live_vouchers_cache";
+        const LOGO_KEY = "ajwa_live_logo_url";
+        const SUPPORTED_UNITS = ['kg', 'Pc', 'Box', 'Ltr', 'Meter', 'Pack', 'Dozen', 'Roll', 'Tonne', 'Gram'];
+
+        let inventory = [];
+        let vouchers = [];
+        let dashboardChartInstance = null;
+        let endpointUrl = HARDCODED_ENDPOINT;
+
+        window.onload = async function() {
+            lucide.createIcons();
+            document.getElementById('endpointUrlInput').value = endpointUrl;
+            setupDropZone();
+
+            // Load cached logo and data
+            loadCachedLogo();
+            loadLastSavedData();
+
+            // Fetch live data & logo from Google Sheets
+            await fetchServerConnection();
+        };
+
+        function applyLogo(url) {
+            if (!url) return;
+            const img = document.getElementById('customLogoImg');
+            const icon = document.getElementById('defaultLogoIcon');
+            const container = document.getElementById('logoContainer');
+
+            if (img && icon && container) {
+                img.src = url;
+                img.onload = function() {
+                    img.classList.remove('hidden');
+                    icon.classList.add('hidden');
+                    container.className = "p-1 bg-white rounded-xl shadow-md border border-slate-200 flex items-center justify-center w-10 h-10 overflow-hidden shrink-0";
+                };
+                img.onerror = function() {
+                    img.classList.add('hidden');
+                    icon.classList.remove('hidden');
+                };
+            }
+        }
+
+        function loadCachedLogo() {
+            const cachedLogo = localStorage.getItem(LOGO_KEY);
+            if (cachedLogo) {
+                applyLogo(cachedLogo);
+            }
+        }
+
+        function loadLastSavedData() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        inventory = parsed;
+                    }
+                } catch(e) {
+                    console.warn("Cache parse error:", e);
+                }
+            }
+
+            const savedVouchers = localStorage.getItem(VOUCHERS_KEY);
+            if (savedVouchers) {
+                try {
+                    const parsedV = JSON.parse(savedVouchers);
+                    if (Array.isArray(parsedV)) {
+                        vouchers = parsedV;
+                    }
+                } catch(e) {
+                    console.warn("Vouchers cache parse error:", e);
+                }
+            }
+
+            if (inventory.length > 0 || vouchers.length > 0) {
+                renderAll();
+                updateConnectionStatus(true, "Loaded Cached Data (Syncing...)");
+            }
+        }
+
+        function savePersistentData() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(inventory));
+            localStorage.setItem(VOUCHERS_KEY, JSON.stringify(vouchers));
+            if (endpointUrl) {
+                pushDataToServer();
+            }
+        }
+
+        function getItemStatus(item) {
+            const stock = parseFloat(item.stock || item.Quantity || 0) || 0;
+            const critical = parseFloat(item.criticalLimit || item.Critical || 5) || 0;
+            const min = parseFloat(item.minLimit || item.Min || 10) || 0;
+            const upper = parseFloat(item.upperLimit || item.Max || 100) || Infinity;
+
+            if (stock <= critical || stock === 0) {
+                return { key: "ACTION", label: "Action Needed", color: "bg-rose-100 text-rose-700 border-rose-300", badge: "🔴 Action Needed" };
+            } else if (stock <= min) {
+                return { key: "LOW", label: "Low Stock", color: "bg-amber-100 text-amber-700 border-amber-300", badge: "🟡 Low Stock" };
+            } else if (upper > 0 && stock > upper) {
+                return { key: "OVER", label: "Overstocked", color: "bg-blue-100 text-blue-700 border-blue-300", badge: "🔵 Overstocked" };
+            } else {
+                return { key: "OPTIMAL", label: "Optimal Stock", color: "bg-emerald-100 text-emerald-700 border-emerald-300", badge: "🟢 Optimal" };
+            }
+        }
+
+        function renderAll() {
+            renderDashboard();
+            renderInventoryViews();
+            renderVouchersTable();
+            renderAuditorTool();
+            renderReorderSection();
+            populateCategoryDropdowns();
+            populateUnitFilter();
+            lucide.createIcons();
+        }
+
+        function renderDashboard() {
+            let totalValuation = 0;
+            let actionCount = 0;
+            let lowCount = 0;
+
+            const previewHtml = [];
+            const cardsHtml = [];
+
+            inventory.forEach((item, index) => {
+                const status = getItemStatus(item);
+                const stock = parseFloat(item.stock || item.Quantity || 0) || 0;
+                const cost = parseFloat(item.cost || item['Cost Price'] || 0) || 0;
+                const val = stock * cost;
+                totalValuation += val;
+
+                if (status.key === "ACTION") actionCount++;
+                if (status.key === "LOW") lowCount++;
+
+                if (status.key === "ACTION" || status.key === "LOW") {
+                    previewHtml.push(`<div class="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between text-xs"> <div> <div class="font-bold text-slate-800">${escapeHtml(item.name || item['Product Name'])}</div> <div class="text-[10px] text-slate-500">SKU: ${escapeHtml(item.sku || item.SKU)} | Stock: <span class="font-bold text-rose-600">${stock} ${escapeHtml(item.unit || item.Unit)}</span></div> </div> <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${status.color}">${status.badge}</span> </div>`);
+                }
+
+                if (index < 6) {
+                    cardsHtml.push(`<div class="p-3 bg-slate-50/80 rounded-xl border border-slate-200 flex justify-between items-center text-xs"> <div> <div class="font-bold text-slate-800">${escapeHtml(item.name || item['Product Name'])}</div> <div class="text-[10px] text-slate-500">SKU: ${escapeHtml(item.sku || item.SKU)} • ${escapeHtml(item.category || item.Category)}</div> <div class="mt-1 font-extrabold text-sm text-slate-900">${stock} <span class="text-xs text-slate-500 font-normal">${escapeHtml(item.unit || item.Unit)}</span></div> </div> <div class="text-right"> <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${status.color}">${status.badge}</span> <div class="mt-2 text-[11px] font-semibold text-slate-700">₹${val.toFixed(2)}</div> </div> </div>`);
+                }
+            });
+
+            document.getElementById('dashTotalValue').innerText = `₹${totalValuation.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            document.getElementById('dashTotalSKUs').innerText = inventory.length;
+            document.getElementById('dashActionCount').innerText = actionCount;
+            document.getElementById('dashVoucherCount').innerText = vouchers.length;
+
+            const mobBadge = document.getElementById('mobReorderBadge');
+            if (mobBadge) mobBadge.innerText = actionCount + lowCount;
+
+            document.getElementById('dashReorderPreview').innerHTML = previewHtml.length ? previewHtml.join('') : '<p class="text-xs text-slate-400 py-3 text-center">All stocks optimal!</p>';
+            document.getElementById('dashInventoryCards').innerHTML = cardsHtml.length ? cardsHtml.join('') : '<p class="text-xs text-slate-400 py-6 text-center col-span-3">No inventory data available.</p>';
+
+            renderDashboardChart(actionCount, lowCount);
+        }
+
+        function renderDashboardChart(actionCount, lowCount) {
+            let optimal = 0, over = 0;
+            inventory.forEach(i => {
+                const k = getItemStatus(i).key;
+                if (k === 'OPTIMAL') optimal++;
+                if (k === 'OVER') over++;
+            });
+
+            const ctx = document.getElementById('dashboardChart').getContext('2d');
+            if (dashboardChartInstance) dashboardChartInstance.destroy();
+
+            dashboardChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Action Needed', 'Low Stock', 'Optimal', 'Overstocked'],
+                    datasets: [{
+                        data: [actionCount, lowCount, optimal, over],
+                        backgroundColor: ['#e11d48', '#d97706', '#059669', '#2563eb'],
+                        borderColor: '#ffffff',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: '#475569', font: { family: 'Inter', size: 11 } } }
+                    }
+                }
+            });
+        }
+
+        function renderInventoryViews() {
+            const tbody = document.getElementById('inventoryTableBody');
+            const mobileContainer = document.getElementById('inventoryMobileCards');
+
+            const searchVal = document.getElementById('searchInput').value.toLowerCase();
+            const catFilter = document.getElementById('filterCategory').value;
+            const statusFilter = document.getElementById('filterStatus').value;
+            const unitFilter = document.getElementById('filterUnit').value;
+
+            const filtered = inventory.filter(item => {
+                const name = item.name || item['Product Name'] || '';
+                const sku = item.sku || item.SKU || '';
+                const category = item.category || item.Category || '';
+                const unit = item.unit || item.Unit || '';
+
+                const matchSearch = name.toString().toLowerCase().includes(searchVal) || sku.toString().toLowerCase().includes(searchVal) || category.toString().toLowerCase().includes(searchVal);
+                const matchCat = catFilter === 'ALL' || category === catFilter;
+                const matchStatus = statusFilter === 'ALL' || getItemStatus(item).key === statusFilter;
+                const matchUnit = unitFilter === 'ALL' || unit === unitFilter;
+                return matchSearch && matchCat && matchStatus && matchUnit;
+            });
+
+            document.getElementById('recordCountInfo').innerText = `${filtered.length} of ${inventory.length} Products`;
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="10" class="p-6 text-center text-slate-400">No products match criteria.</td></tr>`;
+                mobileContainer.innerHTML = `<p class="p-6 text-center text-slate-400 text-xs">No products found.</p>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(item => {
+                const status = getItemStatus(item);
+                const itemId = String(item.id || item.SKU || item.sku || '');
+                const sku = item.sku || item.SKU || '';
+                const name = item.name || item['Product Name'] || '';
+                const category = item.category || item.Category || '';
+                const stock = parseFloat(item.stock || item.Quantity || 0) || 0;
+                const unit = item.unit || item.Unit || '';
+                const min = item.minLimit || item.Min || 10;
+                const crit = item.criticalLimit || item.Critical || 5;
+                const cost = parseFloat(item.cost || item['Cost Price'] || 0) || 0;
+                const val = stock * cost;
+
+                return `<tr class="hover:bg-slate-50 transition-colors"> 
+                    <td class="p-3.5 font-mono text-xs font-semibold text-slate-700">${escapeHtml(sku)}</td> 
+                    <td class="p-3.5 font-bold text-slate-900">${escapeHtml(name)}</td> 
+                    <td class="p-3.5 text-slate-500">${escapeHtml(category)}</td> 
+                    <td class="p-3.5"> <input type="number" step="0.01" value="${stock}" onchange="updateStockDirect('${escapeHtml(itemId)}', this.value)" class="w-20 p-1 bg-white border border-slate-300 rounded text-xs font-bold text-slate-900 outline-none focus:ring-1 focus:ring-brand-500"> </td> 
+                    <td class="p-3.5 text-slate-600">${escapeHtml(unit)}</td> 
+                    <td class="p-3.5 text-slate-500 text-xs">Min: ${min} | Crit: <span class="text-rose-600 font-bold">${crit}</span></td> 
+                    <td class="p-3.5"><span class="px-2 py-0.5 rounded text-xs font-bold border ${status.color}">${status.badge}</span></td> 
+                    <td class="p-3.5 text-right text-slate-600">₹${cost.toFixed(2)}</td> 
+                    <td class="p-3.5 text-right font-bold text-slate-900">₹${val.toFixed(2)}</td> 
+                    <td class="p-3.5 text-center"> 
+                        <div class="flex items-center justify-center gap-2"> 
+                            <button onclick="openEditProductModal('${escapeHtml(itemId)}')" class="p-1 text-slate-400 hover:text-brand-600"><i data-lucide="edit-3" class="w-4 h-4"></i></button> 
+                            <button onclick="deleteProduct('${escapeHtml(itemId)}')" class="p-1 text-slate-400 hover:text-rose-600"><i data-lucide="trash-2" class="w-4 h-4"></i></button> 
+                        </div> 
+                    </td> 
+                </tr>`;
+            }).join('');
+
+            mobileContainer.innerHTML = filtered.map(item => {
+                const status = getItemStatus(item);
+                const itemId = String(item.id || item.SKU || item.sku || '');
+                const sku = item.sku || item.SKU || '';
+                const name = item.name || item['Product Name'] || '';
+                const category = item.category || item.Category || '';
+                const stock = parseFloat(item.stock || item.Quantity || 0) || 0;
+                const unit = item.unit || item.Unit || '';
+                const min = item.minLimit || item.Min || 10;
+                const crit = item.criticalLimit || item.Critical || 5;
+                const cost = parseFloat(item.cost || item['Cost Price'] || 0) || 0;
+                const val = stock * cost;
+
+                return `
+                <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <span class="font-mono text-[10px] text-brand-600 font-semibold">${escapeHtml(sku)}</span>
+                            <h4 class="font-bold text-slate-900 text-sm leading-tight">${escapeHtml(name)}</h4>
+                            <span class="text-[10px] text-slate-500">${escapeHtml(category)}</span>
+                        </div>
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${status.color}">${status.badge}</span>
+                    </div>
+                    <div class="flex items-center justify-between bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                        <div>
+                            <span class="text-[10px] text-slate-500 uppercase font-bold block">Current Stock</span>
+                            <div class="flex items-center gap-1.5 mt-0.5">
+                                <input type="number" step="0.01" value="${stock}" onchange="updateStockDirect('${escapeHtml(itemId)}', this.value)" class="w-20 p-1 bg-white border border-slate-300 rounded text-xs font-bold text-slate-900 text-center">
+                                <span class="text-xs text-slate-600 font-medium">${escapeHtml(unit)}</span>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-[10px] text-slate-500 uppercase font-bold block">Total Value</span>
+                            <span class="font-extrabold text-sm text-emerald-600">₹${val.toFixed(2)}</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between text-[11px] pt-1 border-t border-slate-100">
+                        <span class="text-slate-500">Rules: Min <strong class="text-slate-700">${min}</strong> | Crit <strong class="text-rose-600">${crit}</strong></span>
+                        <div class="flex gap-2">
+                            <button onclick="openEditProductModal('${escapeHtml(itemId)}')" class="text-brand-600 font-semibold hover:underline">Edit</button>
+                            <button onclick="deleteProduct('${escapeHtml(itemId)}')" class="text-rose-600 font-semibold hover:underline">Delete</button>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        // --- STOCK-IN VOUCHERS LOGIC ---
+        function renderVouchersTable() {
+            const tbody = document.getElementById('vouchersTableBody');
+            if (!tbody) return;
+
+            if (vouchers.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-400">No stock-in vouchers recorded yet.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = vouchers.map(v => {
+                const totalAmt = parseFloat(v.totalAmount || 0) || 0;
+                const itemsCount = Array.isArray(v.items) ? v.items.length : 0;
+                return `
+                <tr class="hover:bg-slate-50 transition-colors">
+                    <td class="p-3.5 font-mono font-bold text-slate-800">${escapeHtml(v.voucherNo)}</td>
+                    <td class="p-3.5 text-slate-600">${escapeHtml(v.date)}</td>
+                    <td class="p-3.5 font-semibold text-slate-900">${escapeHtml(v.supplier)}</td>
+                    <td class="p-3.5"><span class="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded font-bold">${itemsCount} Items</span></td>
+                    <td class="p-3.5 text-right font-extrabold text-slate-900">₹${totalAmt.toFixed(2)}</td>
+                    <td class="p-3.5 text-center">
+                        <div class="flex items-center justify-center gap-2">
+                            <button onclick="viewVoucherDetails('${escapeHtml(v.id)}')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded border border-slate-300">View</button>
+                            <button onclick="deleteVoucher('${escapeHtml(v.id)}')" class="p-1 text-slate-400 hover:text-rose-600"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        </div>
+                    </td>
+                </tr>
+                `;
+            }).join('');
+            lucide.createIcons();
+        }
+
+        function openStockInModal() {
+            if (inventory.length === 0) {
+                showToast("Please add or import products before creating a Stock-In voucher.", "error");
+                return;
+            }
+            document.getElementById('voucherNo').value = `VC-IN-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+            document.getElementById('voucherSupplier').value = '';
+            document.getElementById('voucherRef').value = '';
+            document.getElementById('voucherNotes').value = '';
+            document.getElementById('voucherItemsTableBody').innerHTML = '';
+            
+            // Add initial 1 row
+            addVoucherItemRow();
+            document.getElementById('stockInModal').classList.remove('hidden');
+        }
+
+        function closeStockInModal() {
+            document.getElementById('stockInModal').classList.add('hidden');
+        }
+
+        function addVoucherItemRow() {
+            const tbody = document.getElementById('voucherItemsTableBody');
+            const rowId = 'vrow_' + Date.now() + Math.random().toString(36).substr(2, 4);
+
+            const optionsHtml = inventory.map(item => {
+                const sku = item.sku || item.SKU || '';
+                const name = item.name || item['Product Name'] || '';
+                return `<option value="${escapeHtml(sku)}">${escapeHtml(sku)} - ${escapeHtml(name)}</option>`;
+            }).join('');
+
+            const tr = document.createElement('tr');
+            tr.id = rowId;
+            tr.className = "border-b border-slate-100";
+            tr.innerHTML = `
+                <td class="p-2">
+                    <select onchange="onVoucherProductSelect('${rowId}')" class="voucher-prod-select w-full p-2 bg-slate-50 border border-slate-300 rounded text-slate-900 text-xs outline-none focus:ring-1 focus:ring-emerald-500">
+                        <option value="">-- Select Product --</option>
+                        ${optionsHtml}
+                    </select>
+                </td>
+                <td class="p-2">
+                    <input type="number" step="0.01" min="0.01" value="1" oninput="calculateVoucherTotal()" class="voucher-qty w-full p-2 bg-slate-50 border border-slate-300 rounded text-slate-900 text-xs text-center font-bold outline-none focus:ring-1 focus:ring-emerald-500">
+                </td>
+                <td class="p-2">
+                    <span class="voucher-unit text-slate-600 font-medium block text-center">-</span>
+                </td>
+                <td class="p-2">
+                    <input type="number" step="0.01" min="0" value="0" oninput="calculateVoucherTotal()" class="voucher-cost w-full p-2 bg-slate-50 border border-slate-300 rounded text-slate-900 text-xs text-right outline-none focus:ring-1 focus:ring-emerald-500">
+                </td>
+                <td class="p-2 text-right">
+                    <span class="voucher-subtotal font-bold text-slate-900">₹0.00</span>
+                </td>
+                <td class="p-2 text-center">
+                    <button type="button" onclick="removeVoucherItemRow('${rowId}')" class="p-1 text-slate-400 hover:text-rose-600"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+            lucide.createIcons();
+            
+            // Auto-select first item if possible
+            if (inventory.length > 0) {
+                const selectElem = tr.querySelector('.voucher-prod-select');
+                selectElem.selectedIndex = 1;
+                onVoucherProductSelect(rowId);
+            }
+        }
+
+        function removeVoucherItemRow(rowId) {
+            const tr = document.getElementById(rowId);
+            if (tr) tr.remove();
+            calculateVoucherTotal();
+        }
+
+        function onVoucherProductSelect(rowId) {
+            const tr = document.getElementById(rowId);
+            if (!tr) return;
+            const select = tr.querySelector('.voucher-prod-select');
+            const sku = select.value;
+            const item = inventory.find(i => String(i.sku || i.SKU || '') === String(sku));
+
+            if (item) {
+                tr.querySelector('.voucher-unit').innerText = item.unit || item.Unit || 'Pc';
+                tr.querySelector('.voucher-cost').value = parseFloat(item.cost || item['Cost Price'] || 0) || 0;
+            } else {
+                tr.querySelector('.voucher-unit').innerText = '-';
+                tr.querySelector('.voucher-cost').value = 0;
+            }
+            calculateVoucherTotal();
+        }
+
+        function calculateVoucherTotal() {
+            const rows = document.querySelectorAll('#voucherItemsTableBody tr');
+            let grandTotal = 0;
+
+            rows.forEach(tr => {
+                const qty = parseFloat(tr.querySelector('.voucher-qty').value) || 0;
+                const cost = parseFloat(tr.querySelector('.voucher-cost').value) || 0;
+                const subtotal = qty * cost;
+                grandTotal += subtotal;
+                tr.querySelector('.voucher-subtotal').innerText = `₹${subtotal.toFixed(2)}`;
+            });
+
+            document.getElementById('voucherGrandTotal').innerText = `₹${grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        }
+
+        function postStockInVoucher(e) {
+            e.preventDefault();
+            const rows = document.querySelectorAll('#voucherItemsTableBody tr');
+            if (rows.length === 0) {
+                showToast("Please add at least one item to the Stock-In voucher.", "error");
+                return;
+            }
+
+            const voucherNo = document.getElementById('voucherNo').value.trim();
+            const supplier = document.getElementById('voucherSupplier').value.trim();
+            const referenceNo = document.getElementById('voucherRef').value.trim();
+            const notes = document.getElementById('voucherNotes').value.trim();
+
+            const voucherItems = [];
+            let grandTotal = 0;
+
+            for (let tr of rows) {
+                const select = tr.querySelector('.voucher-prod-select');
+                const sku = select.value;
+                if (!sku) {
+                    showToast("Please select a product for all rows.", "error");
+                    return;
+                }
+                const qty = parseFloat(tr.querySelector('.voucher-qty').value) || 0;
+                if (qty <= 0) {
+                    showToast("Quantity must be greater than 0.", "error");
+                    return;
+                }
+                const cost = parseFloat(tr.querySelector('.voucher-cost').value) || 0;
+                const unit = tr.querySelector('.voucher-unit').innerText;
+                const subtotal = qty * cost;
+                grandTotal += subtotal;
+
+                const itemObj = inventory.find(i => String(i.sku || i.SKU || '') === String(sku));
+                const productName = itemObj ? (itemObj.name || itemObj['Product Name'] || sku) : sku;
+
+                voucherItems.push({
+                    sku: sku,
+                    name: productName,
+                    qty: qty,
+                    unit: unit,
+                    cost: cost,
+                    subtotal: subtotal
+                });
+            }
+
+            // Update Stock in Inventory
+            voucherItems.forEach(vi => {
+                const idx = inventory.findIndex(i => String(i.sku || i.SKU || '') === String(vi.sku));
+                if (idx !== -1) {
+                    const currentStock = parseFloat(inventory[idx].stock || inventory[idx].Quantity || 0) || 0;
+                    const newStock = currentStock + vi.qty;
+                    if (inventory[idx].stock !== undefined) inventory[idx].stock = newStock;
+                    if (inventory[idx].Quantity !== undefined) inventory[idx].Quantity = newStock;
+                    
+                    // Update cost price if specified in voucher
+                    if (vi.cost > 0) {
+                        if (inventory[idx].cost !== undefined) inventory[idx].cost = vi.cost;
+                        if (inventory[idx]['Cost Price'] !== undefined) inventory[idx]['Cost Price'] = vi.cost;
+                    }
+                }
+            });
+
+            const newVoucher = {
+                id: 'vch_' + Date.now(),
+                voucherNo: voucherNo,
+                date: new Date().toLocaleString(),
+                supplier: supplier,
+                referenceNo: referenceNo,
+                notes: notes,
+                items: voucherItems,
+                totalAmount: grandTotal
+            };
+
+            vouchers.unshift(newVoucher);
+            savePersistentData();
+            closeStockInModal();
+            renderAll();
+            showToast(`Stock-In Voucher ${voucherNo} posted & stock updated successfully!`, "success");
+        }
+
+        function viewVoucherDetails(id) {
+            const v = vouchers.find(x => String(x.id) === String(id));
+            if (!v) return;
+
+            const content = document.getElementById('voucherDetailsContent');
+            const itemsHtml = v.items.map(i => `
+                <tr class="border-b border-slate-100">
+                    <td class="p-2 font-mono font-semibold">${escapeHtml(i.sku)}</td>
+                    <td class="p-2 font-bold">${escapeHtml(i.name)}</td>
+                    <td class="p-2 text-center font-extrabold text-emerald-600">+${i.qty} ${escapeHtml(i.unit)}</td>
+                    <td class="p-2 text-right">₹${parseFloat(i.cost).toFixed(2)}</td>
+                    <td class="p-2 text-right font-bold">₹${parseFloat(i.subtotal).toFixed(2)}</td>
+                </tr>
+            `).join('');
+
+            content.innerHTML = `
+                <div class="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <div>
+                        <span class="text-[10px] text-slate-500 uppercase font-bold block">Voucher No</span>
+                        <span class="font-mono font-bold text-slate-900">${escapeHtml(v.voucherNo)}</span>
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-slate-500 uppercase font-bold block">Date & Time</span>
+                        <span class="text-slate-700">${escapeHtml(v.date)}</span>
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-slate-500 uppercase font-bold block">Supplier</span>
+                        <span class="font-bold text-slate-900">${escapeHtml(v.supplier)}</span>
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-slate-500 uppercase font-bold block">Reference / PO</span>
+                        <span class="text-slate-700">${escapeHtml(v.referenceNo || 'N/A')}</span>
+                    </div>
+                </div>
+                ${v.notes ? `<div class="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-800"><strong>Notes:</strong> ${escapeHtml(v.notes)}</div>` : ''}
+                <div class="border border-slate-200 rounded-xl overflow-hidden">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-100 font-bold text-slate-600 uppercase border-b border-slate-200">
+                            <tr>
+                                <th class="p-2">SKU</th>
+                                <th class="p-2">Product</th>
+                                <th class="p-2 text-center">Qty In</th>
+                                <th class="p-2 text-right">Unit Cost</th>
+                                <th class="p-2 text-right">Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">${itemsHtml}</tbody>
+                    </table>
+                </div>
+                <div class="flex justify-between items-center p-3 bg-emerald-50 border border-emerald-200 rounded-xl font-extrabold text-emerald-900">
+                    <span>Total Stock-In Valuation:</span>
+                    <span>₹${parseFloat(v.totalAmount).toFixed(2)}</span>
+                </div>
+            `;
+            document.getElementById('voucherDetailsModal').classList.remove('hidden');
+        }
+
+        function closeVoucherDetailsModal() {
+            document.getElementById('voucherDetailsModal').classList.add('hidden');
+        }
+
+        function deleteVoucher(id) {
+            if (confirm("Delete this Stock-In voucher record? (Note: Stock quantities in inventory will remain updated)")) {
+                vouchers = vouchers.filter(x => String(x.id) !== String(id));
+                savePersistentData();
+                renderAll();
+                showToast("Voucher record deleted.", "info");
+            }
+        }
+        // --- END STOCK-IN VOUCHERS LOGIC ---
+
+        function renderAuditorTool() {
+            const container = document.getElementById('touchAuditorList');
+            if (inventory.length === 0) {
+                container.innerHTML = '<p class="text-xs text-slate-400 py-6 text-center">No inventory loaded.</p>';
+                return;
+            }
+            container.innerHTML = inventory.map(item => {
+                const status = getItemStatus(item);
+                const itemId = String(item.id || item.SKU || item.sku || '');
+                const sku = item.sku || item.SKU || '';
+                const name = item.name || item['Product Name'] || '';
+                const stock = parseFloat(item.stock || item.Quantity || 0) || 0;
+                const unit = item.unit || item.Unit || '';
+
+                return `
+                <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <div class="font-bold text-slate-900 text-sm">${escapeHtml(name)}</div>
+                            <div class="text-[10px] text-slate-500">SKU: ${escapeHtml(sku)}</div>
+                        </div>
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${status.color}">${status.badge}</span>
+                    </div>
+                    <div class="flex items-center justify-between bg-slate-50 p-2 rounded-lg border border-slate-200">
+                        <span class="text-xs text-slate-500">Quantity:</span>
+                        <div class="text-base font-extrabold text-slate-900">
+                            ${stock} <span class="text-xs text-slate-500 font-normal">${escapeHtml(unit)}</span>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-6 gap-1.5 touch-action-manipulation">
+                        <button onclick="adjustStockDelta('${escapeHtml(itemId)}', -10)" class="py-2 bg-slate-100 hover:bg-slate-200 text-rose-700 font-bold text-xs rounded-lg border border-slate-300">-10</button>
+                        <button onclick="adjustStockDelta('${escapeHtml(itemId)}', -5)" class="py-2 bg-slate-100 hover:bg-slate-200 text-rose-700 font-bold text-xs rounded-lg border border-slate-300">-5</button>
+                        <button onclick="adjustStockDelta('${escapeHtml(itemId)}', -1)" class="py-2 bg-slate-100 hover:bg-slate-200 text-rose-700 font-bold text-xs rounded-lg border border-slate-300">-1</button>
+                        <button onclick="adjustStockDelta('${escapeHtml(itemId)}', 1)" class="py-2 bg-slate-100 hover:bg-slate-200 text-emerald-700 font-bold text-xs rounded-lg border border-slate-300">+1</button>
+                        <button onclick="adjustStockDelta('${escapeHtml(itemId)}', 5)" class="py-2 bg-slate-100 hover:bg-slate-200 text-emerald-700 font-bold text-xs rounded-lg border border-slate-300">+5</button>
+                        <button onclick="adjustStockDelta('${escapeHtml(itemId)}', 10)" class="py-2 bg-slate-100 hover:bg-slate-200 text-emerald-700 font-bold text-xs rounded-lg border border-slate-300">+10</button>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        function adjustStockDelta(id, delta) {
+            const idx = inventory.findIndex(i => String(i.id) == String(id) || String(i.SKU) == String(id) || String(i.sku) == String(id));
+            if (idx !== -1) {
+                const current = parseFloat(inventory[idx].stock || inventory[idx].Quantity || 0) || 0;
+                const updated = Math.max(0, current + delta);
+                if (inventory[idx].stock !== undefined) inventory[idx].stock = updated;
+                if (inventory[idx].Quantity !== undefined) inventory[idx].Quantity = updated;
+                savePersistentData();
+                renderAll();
+            }
+        }
+
+        function updateStockDirect(id, val) {
+            const idx = inventory.findIndex(i => String(i.id) == String(id) || String(i.SKU) == String(id) || String(i.sku) == String(id));
+            if (idx !== -1) {
+                const newVal = parseFloat(val) || 0;
+                if (inventory[idx].stock !== undefined) inventory[idx].stock = newVal;
+                if (inventory[idx].Quantity !== undefined) inventory[idx].Quantity = newVal;
+                savePersistentData();
+                renderDashboard();
+                renderAuditorTool();
+            }
+        }
+
+        function filterInventory() {
+            renderInventoryViews();
+        }
+
+        function renderReorderSection() {
+            const criticalContainer = document.getElementById('criticalReorderCards');
+            const lowContainer = document.getElementById('lowStockCards');
+
+            const criticals = inventory.filter(i => getItemStatus(i).key === 'ACTION');
+            const lows = inventory.filter(i => getItemStatus(i).key === 'LOW');
+
+            criticalContainer.innerHTML = criticals.length ? criticals.map(i => renderReorderCard(i, 'rose')).join('') : '<p class="text-xs text-slate-400">No critical reorders needed.</p>';
+            lowContainer.innerHTML = lows.length ? lows.map(i => renderReorderCard(i, 'amber')).join('') : '<p class="text-xs text-slate-400">No low stock warnings.</p>';
+        }
+
+        function renderReorderCard(item, theme) {
+            const stock = parseFloat(item.stock || item.Quantity || 0) || 0;
+            const upper = parseFloat(item.upperLimit || item.Max || 100);
+            const cost = parseFloat(item.cost || item['Cost Price'] || 0) || 0;
+            const target = (upper - stock).toFixed(2);
+            const estCost = (target * cost).toFixed(2);
+            const name = item.name || item['Product Name'] || '';
+            const sku = item.sku || item.SKU || '';
+            const unit = item.unit || item.Unit || '';
+            const itemId = String(item.id || sku);
+
+            return `<div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center text-xs"> 
+                <div> 
+                    <div class="font-bold text-slate-800">${escapeHtml(name)}</div> 
+                    <div class="text-[10px] text-slate-500">SKU: ${escapeHtml(sku)} | Stock: <strong class="text-${theme}-600">${stock} ${escapeHtml(unit)}</strong></div> 
+                    <div class="mt-1 text-[11px] text-slate-700">Suggested Order: <strong class="text-slate-900">${target} ${escapeHtml(unit)}</strong></div> 
+                </div> 
+                <div class="text-right"> 
+                    <span class="text-[10px] text-slate-500 block">Est. Cost</span> 
+                    <span class="font-extrabold text-sm text-${theme}-600">₹${estCost}</span> 
+                    <button onclick="openEditProductModal('${escapeHtml(itemId)}')" class="mt-2 block text-[10px] text-brand-600 font-bold hover:underline">Edit Rule</button> 
+                </div> 
+            </div>`;
+        }
+
+        function openAddProductModal() {
+            document.getElementById('modalTitle').innerText = 'Add Product Record';
+            document.getElementById('productForm').reset();
+            document.getElementById('prodId').value = '';
+            document.getElementById('productModal').classList.remove('hidden');
+        }
+
+        function openEditProductModal(id) {
+            const searchId = String(id).trim();
+            const item = inventory.find(i => String(i.id || '').trim() === searchId || String(i.SKU || '').trim() === searchId || String(i.sku || '').trim() === searchId);
+            if (!item) {
+                showToast("Product record not found.", "error");
+                return;
+            }
+
+            document.getElementById('modalTitle').innerText = 'Edit Product Details';
+            document.getElementById('prodId').value = item.id || item.SKU || item.sku || '';
+            document.getElementById('prodSKU').value = item.sku || item.SKU || '';
+            document.getElementById('prodName').value = item.name || item['Product Name'] || '';
+            document.getElementById('prodCategory').value = item.category || item.Category || '';
+            document.getElementById('prodStock').value = item.stock || item.Quantity || 0;
+            document.getElementById('prodUnit').value = item.unit || item.Unit || 'Pc';
+            document.getElementById('prodCost').value = item.cost || item['Cost Price'] || 0;
+            document.getElementById('prodPrice').value = item.price || item['Selling Price'] || 0;
+            document.getElementById('prodMin').value = item.minLimit || item.Min || 10;
+            document.getElementById('prodCritical').value = item.criticalLimit || item.Critical || 5;
+            document.getElementById('prodUpper').value = item.upperLimit || item.Max || 100;
+
+            document.getElementById('productModal').classList.remove('hidden');
+        }
+
+        function closeProductModal() {
+            document.getElementById('productModal').classList.add('hidden');
+        }
+
+        function saveProduct(e) {
+            e.preventDefault();
+            const id = document.getElementById('prodId').value;
+            const sku = document.getElementById('prodSKU').value.trim();
+            const name = document.getElementById('prodName').value.trim();
+            const category = document.getElementById('prodCategory').value.trim();
+            const stock = parseFloat(document.getElementById('prodStock').value) || 0;
+            const unit = document.getElementById('prodUnit').value;
+            const cost = parseFloat(document.getElementById('prodCost').value) || 0;
+            const price = parseFloat(document.getElementById('prodPrice').value) || 0;
+            const minLimit = parseFloat(document.getElementById('prodMin').value) || 0;
+            const criticalLimit = parseFloat(document.getElementById('prodCritical').value) || 0;
+            const upperLimit = parseFloat(document.getElementById('prodUpper').value) || 0;
+
+            const newItemObj = {
+                id: id || Date.now().toString(),
+                sku: sku,
+                SKU: sku,
+                name: name,
+                "Product Name": name,
+                category: category,
+                Category: category,
+                stock: stock,
+                Quantity: stock,
+                unit: unit,
+                Unit: unit,
+                cost: cost,
+                "Cost Price": cost,
+                price: price,
+                "Selling Price": price,
+                minLimit: minLimit,
+                Min: minLimit,
+                criticalLimit: criticalLimit,
+                Critical: criticalLimit,
+                upperLimit: upperLimit,
+                Max: upperLimit
+            };
+
+            if (id) {
+                const searchId = String(id).trim();
+                const idx = inventory.findIndex(i => String(i.id || '').trim() === searchId || String(i.SKU || '').trim() === searchId || String(i.sku || '').trim() === searchId);
+                if (idx !== -1) {
+                    inventory[idx] = newItemObj;
+                } else {
+                    inventory.push(newItemObj);
+                }
+            } else {
+                inventory.push(newItemObj);
+            }
+
+            savePersistentData();
+            closeProductModal();
+            renderAll();
+        }
+
+        function deleteProduct(id) {
+            if (confirm("Delete this product record?")) {
+                const searchId = String(id).trim();
+                inventory = inventory.filter(i => String(i.id || '').trim() !== searchId && String(i.SKU || '').trim() !== searchId && String(i.sku || '').trim() !== searchId);
+                savePersistentData();
+                renderAll();
+            }
+        }
+
+        async function fetchServerConnection() {
+            if (!endpointUrl) return;
+            try {
+                const res = await fetch(endpointUrl, { redirect: 'follow' });
+                const raw = await res.json();
+                
+                let data = raw;
+                let fetchedLogo = "";
+
+                if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+                    data = raw.inventory || raw.data || raw.items || raw.products || raw.rows || [];
+                    fetchedLogo = raw.logoUrl || "";
+                }
+
+                if (fetchedLogo) {
+                    localStorage.setItem(LOGO_KEY, fetchedLogo);
+                    applyLogo(fetchedLogo);
+                }
+
+                if (Array.isArray(data) && data.length > 0) {
+                    inventory = data;
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(inventory));
+                    renderAll();
+                    updateConnectionStatus(true, "Google Sheets Live Connected");
+                    showToast("Synced latest data from Google Sheets!", "success");
+                }
+            } catch (err) {
+                console.error("Sync error:", err);
+                if (inventory.length > 0) {
+                    updateConnectionStatus(true, "Connected (Cached Data)");
+                } else {
+                    updateConnectionStatus(false, "Connection Error");
+                }
+            }
+        }
+
+        async function pushDataToServer() {
+            if (!endpointUrl) return;
+            try {
+                await fetch(endpointUrl, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ inventory, vouchers })
+                });
+                updateConnectionStatus(true, "Google Sheets Synced");
+                showToast("Changes pushed to Google Sheets!", "success");
+            } catch (err) {
+                console.warn("Cloud push warning:", err);
+            }
+        }
+
+        function updateConnectionStatus(isConnected, labelText) {
+            const badge = document.getElementById('connectionBadge');
+            const label = document.getElementById('connectionModeLabel');
+
+            if (isConnected) {
+                badge.className = "w-2 h-2 rounded-full bg-emerald-500 animate-pulse";
+                label.className = "font-medium text-emerald-600";
+                label.innerText = labelText;
+            } else {
+                badge.className = "w-2 h-2 rounded-full bg-rose-500";
+                label.className = "font-medium text-rose-600";
+                label.innerText = labelText;
+            }
+        }
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+                    if (jsonData.length === 0) {
+                        showToast("Excel sheet contains no data!", "error");
+                        return;
+                    }
+
+                    inventory = jsonData.map((row, idx) => ({
+                        id: (Date.now() + idx).toString(),
+                        sku: String(row['SKU'] || row['Item Code'] || `SKU-${idx+1}`),
+                        SKU: String(row['SKU'] || row['Item Code'] || `SKU-${idx+1}`),
+                        name: String(row['Product Name'] || row['Name'] || row['Description'] || 'Unnamed Item'),
+                        "Product Name": String(row['Product Name'] || row['Name'] || row['Description'] || 'Unnamed Item'),
+                        category: String(row['Category'] || 'General'),
+                        Category: String(row['Category'] || 'General'),
+                        stock: parseFloat(row['Quantity'] || row['Stock'] || row['Qty']) || 0,
+                        Quantity: parseFloat(row['Quantity'] || row['Stock'] || row['Qty']) || 0,
+                        unit: SUPPORTED_UNITS.includes(row['Unit']) ? row['Unit'] : 'Pc',
+                        Unit: SUPPORTED_UNITS.includes(row['Unit']) ? row['Unit'] : 'Pc',
+                        cost: parseFloat(row['Cost Price'] || row['Cost']) || 0,
+                        "Cost Price": parseFloat(row['Cost Price'] || row['Cost']) || 0,
+                        price: parseFloat(row['Selling Price'] || row['Price']) || 0,
+                        "Selling Price": parseFloat(row['Selling Price'] || row['Price']) || 0
+                    }));
+
+                    savePersistentData();
+                    renderAll();
+                    showToast(`Imported ${inventory.length} products!`, "success");
+                } catch (err) {
+                    showToast("Error processing Excel file.", "error");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function exportToExcel() {
+            if (inventory.length === 0) return;
+            const exportData = inventory.map(i => ({
+                'SKU': i.sku || i.SKU,
+                'Product Name': i.name || i['Product Name'],
+                'Category': i.category || i.Category,
+                'Quantity': parseFloat(i.stock || i.Quantity || 0) || 0,
+                'Unit': i.unit || i.Unit,
+                'Cost Price': parseFloat(i.cost || i['Cost Price'] || 0) || 0,
+                'Selling Price': parseFloat(i.price || i['Selling Price'] || 0) || 0
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Inventory");
+            XLSX.writeFile(wb, `Stock_Sync_${new Date().toISOString().slice(0,10)}.xlsx`);
+        }
+
+        function exportToCSV() {
+            if (inventory.length === 0) return;
+            const exportData = inventory.map(i => ({
+                'SKU': i.sku || i.SKU,
+                'Product Name': i.name || i['Product Name'],
+                'Stock': parseFloat(i.stock || i.Quantity || 0) || 0,
+                'Unit': i.unit || i.Unit
+            }));
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const csv = XLSX.utils.sheet_to_csv(ws);
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.setAttribute("download", `Stock_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function setupDropZone() {
+            const dropZone = document.getElementById('dropZone');
+            const input = document.getElementById('excelFileInput');
+            if (dropZone && input) {
+                dropZone.addEventListener('click', () => input.click());
+            }
+        }
+
+        function generatePurchaseRequisition() {
+            const reorderItems = inventory.filter(i => {
+                const k = getItemStatus(i).key;
+                return k === 'ACTION' || k === 'LOW';
+            });
+
+            if (reorderItems.length === 0) {
+                showToast("All stock levels optimal!", "info");
+                return;
+            }
+
+            let text = "====================================================\n";
+            text += "     AJWA - STOCK REQUISITION & PURCHASE ORDER      \n";
+            text += `         Generated: ${new Date().toLocaleString()}         \n`;
+            text += "====================================================\n\n";
+
+            let grandTotal = 0;
+            reorderItems.forEach((item, idx) => {
+                const status = getItemStatus(item);
+                const stock = parseFloat(item.stock || item.Quantity || 0) || 0;
+                const upper = parseFloat(item.upperLimit || item.Max || 100);
+                const cost = parseFloat(item.cost || item['Cost Price'] || 0) || 0;
+                const orderQty = (upper - stock).toFixed(2);
+                const estCost = orderQty * cost;
+                grandTotal += estCost;
+
+                text += `${idx + 1}. [${item.sku || item.SKU}] ${item.name || item['Product Name']}\n`;
+                text += `   Stock: ${stock} ${item.unit || item.Unit} | Status: ${status.badge}\n`;
+                text += `   REORDER QTY: ${orderQty} ${item.unit || item.Unit}\n`;
+                text += `   Est. Cost: ₹${estCost.toFixed(2)}\n`;
+                text += "----------------------------------------------------\n";
+            });
+
+            text += `\nTOTAL ESTIMATED ORDER COST: ₹${grandTotal.toFixed(2)}\n`;
+            text += "====================================================\n";
+
+            document.getElementById('requisitionText').value = text;
+            document.getElementById('requisitionModal').classList.remove('hidden');
+        }
+
+        function closeRequisitionModal() {
+            document.getElementById('requisitionModal').classList.add('hidden');
+        }
+
+        function copyRequisitionToClipboard() {
+            const txt = document.getElementById('requisitionText');
+            txt.select();
+            document.execCommand('copy');
+            showToast("Copied purchase requisition to clipboard!", "success");
+        }
+
+        function switchTab(tabId) {
+            ['dashboard', 'inventory', 'vouchers', 'auditor', 'reorders', 'sync'].forEach(id => {
+                const sec = document.getElementById(`tab-${id}`);
+                if (sec) sec.classList.add('hidden');
+
+                const btn = document.getElementById(`mob-nav-${id}`);
+                if (btn) {
+                    btn.classList.remove('text-brand-600');
+                    btn.classList.add('text-slate-500');
+                }
+            });
+
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+            const activeBtn = document.getElementById(`mob-nav-${tabId}`);
+            if (activeBtn) {
+                activeBtn.classList.add('text-brand-600');
+                activeBtn.classList.remove('text-slate-500');
+            }
+        }
+
+        function populateCategoryDropdowns() {
+            const categories = [...new Set(inventory.map(i => i.category || i.Category))].filter(Boolean);
+            const select = document.getElementById('filterCategory');
+            if (select) {
+                select.innerHTML = '<option value="ALL">All Categories</option>' + categories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+            }
+            const datalist = document.getElementById('categoryOptions');
+            if (datalist) {
+                datalist.innerHTML = categories.map(c => `<option value="${escapeHtml(c)}">`).join('');
+            }
+        }
+
+        function populateUnitFilter() {
+            const units = [...new Set(inventory.map(i => i.unit || i.Unit))].filter(Boolean);
+            const select = document.getElementById('filterUnit');
+            if (select) {
+                select.innerHTML = '<option value="ALL">All Units</option>' + units.map(u => `<option value="${escapeHtml(u)}">${escapeHtml(u)}</option>`).join('');
+            }
+        }
+
+        function showToast(message, type = "info") {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+            const toast = document.createElement('div');
+            const colors = {
+                success: "bg-emerald-600 text-white",
+                error: "bg-rose-600 text-white",
+                info: "bg-slate-800 text-white"
+            };
+
+            toast.className = `px-4 py-3 rounded-xl shadow-lg text-xs font-semibold flex items-center justify-between pointer-events-auto transition-all transform translate-y-2 opacity-0 ${colors[type] || colors.info}`;
+            toast.innerHTML = `<span>${escapeHtml(message)}</span>`;
+            container.appendChild(toast);
+
+            setTimeout(() => toast.classList.remove('translate-y-2', 'opacity-0'), 10);
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
